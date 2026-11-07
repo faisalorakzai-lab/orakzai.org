@@ -9,8 +9,22 @@ Native Flutter Android app foundation for Orakzai.org.
 - Five independent destinations: Home, Community, Help Desk, Services and Profile.
 - Search, category filters, local save feedback, language selection, request-form validation and information dialogs.
 - Public program descriptions are based on the SonOfOrakzai organization website. They describe published focus areas, not confirmed service availability.
-- All sample interactions are labeled as preview-only. Authentication, messaging, push notifications and request submission are not connected.
+- Sign-up, login, email verification, password reset, session refresh and private profile editing are implemented against the included REST API and PostgreSQL schema. Production email delivery still needs SMTP configuration.
+- Community messaging, push notifications and Help Desk submission remain preview-only. Google sign-in, wallet sign-in and profile-photo uploads are not configured.
 - No member totals, verified memberships or assistance outcomes are invented.
+
+## Authentication foundation
+
+The backend provides registration, email/phone login, email verification, password reset, rotating refresh tokens, server-checked sessions, profile editing, permissions, organization roles and audit records. Development migrations apply only to the Replit development database; use Replit's database Publish flow to move its schema to production.
+
+```sh
+pnpm install
+pnpm --filter @orakzai/backend migrate
+pnpm --filter @orakzai/backend dev
+pnpm --filter @orakzai/backend test
+```
+
+The backend listens on port `3001`. Android emulator builds use `http://10.0.2.2:3001/api` by default. Use `--dart-define=ORAKZAI_API_BASE_URL=https://your-api.example/api` for a deployed HTTPS API. Development verification/reset codes are shown only when `AUTH_DEV_MODE=true` outside production. For production, configure `SMTP_URL`, `SMTP_FROM`, a strong `ACCESS_TOKEN_SECRET` (or the existing `SESSION_SECRET`), `DATABASE_URL`, and `CORS_ORIGINS`. Never commit real credentials.
 
 ## Run and verify
 

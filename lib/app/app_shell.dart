@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../auth/auth_controller.dart';
 import '../screens/community_screen.dart';
 import '../screens/help_desk_screen.dart';
 import '../screens/home_screen.dart';
@@ -9,7 +10,9 @@ import 'app_language.dart';
 import 'app_theme.dart';
 
 class OrakzaiApp extends StatefulWidget {
-  const OrakzaiApp({super.key});
+  const OrakzaiApp({this.authController, super.key});
+
+  final AuthController? authController;
 
   @override
   State<OrakzaiApp> createState() => _OrakzaiAppState();
@@ -18,6 +21,20 @@ class OrakzaiApp extends StatefulWidget {
 class _OrakzaiAppState extends State<OrakzaiApp> {
   int _selectedIndex = 0;
   AppLanguage _language = AppLanguage.english;
+  late final AuthController _authController;
+
+  @override
+  void initState() {
+    super.initState();
+    _authController = widget.authController ?? AuthController();
+    _authController.restoreSession();
+  }
+
+  @override
+  void dispose() {
+    if (widget.authController == null) _authController.dispose();
+    super.dispose();
+  }
 
   void _openHelpDesk() {
     setState(() => _selectedIndex = 2);
@@ -45,6 +62,7 @@ class _OrakzaiAppState extends State<OrakzaiApp> {
             const ServicesScreen(),
             ProfileScreen(
               language: _language,
+              authController: _authController,
               onLanguageChanged: (language) {
                 setState(() => _language = language);
               },

@@ -48,3 +48,12 @@ app.*.map.json
 /android/key.properties
 *.jks
 *.keystore
+
+# Node API build outputs and local credentials.
+/node_modules/
+/backend/node_modules/
+/backend/dist/
+/backend/coverage/
+/backend/.env
+/backend/.env.*
+!/backend/.env.example

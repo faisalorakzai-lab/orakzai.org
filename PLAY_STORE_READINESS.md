@@ -10,7 +10,7 @@ This app has an Android project and the requested application ID (`org.orakzai.a
 4. Generate an upload key and keep it outside the repository.
 5. Copy `android/key.properties.example` to `android/key.properties` and fill it locally. `android/key.properties` and key files are git-ignored.
 6. Replace demonstration copy with organization-approved content and confirm the availability of every listed service.
-7. Connect and test real authentication, assistance intake, data storage, moderation and privacy controls before claiming those features work.
+7. Configure production email delivery and API hosting, confirm the secure Android API URL, and test real authentication, assistance intake, storage, moderation and privacy controls before claiming those features work.
 8. Prepare a privacy policy, Data safety answers, content rating, store listing, screenshots and support contact.
 9. Test the signed Android release on supported devices before uploading through Google Play Console.
 
@@ -26,7 +26,7 @@ The signing configuration intentionally does not fall back to Android's debug ke
 
 ## Current app behavior
 
-- The five primary screens and local preview interactions work without a server.
+- The five primary screens and local preview interactions work without a server. The included authentication API and database schema have local automated tests, but still require production SMTP/API configuration.
 - The Help Desk form validates input, then explicitly tells the user that no request was sent or stored.
-- Community groups, private messages, authentication, member profiles and notifications are not connected.
+- Community messaging, notifications, and Help Desk submission are not connected. Google/wallet sign-in and photo uploads are also unconfigured.
 - Public program descriptions are reference information only; availability and outcomes are not verified by this app.

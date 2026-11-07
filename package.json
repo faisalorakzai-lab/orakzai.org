@@ -1,0 +1,9 @@
+{
+  "name": "orakzai-org-project",
+  "private": true,
+  "scripts": {
+    "api:dev": "pnpm --filter @orakzai/backend dev",
+    "api:migrate": "pnpm --filter @orakzai/backend migrate",
+    "api:test": "pnpm --filter @orakzai/backend test"
+  }
+}
