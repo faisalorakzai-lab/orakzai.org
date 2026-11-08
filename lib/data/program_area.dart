@@ -112,7 +112,7 @@ const serviceDirectory = <ProgramArea>[
   ProgramArea(
     title: 'Blood Donor Network',
     summary:
-        'A planned service directory; no donor records or contacts are stored in this preview.',
+        'A planned service directory; no donor records or contacts are stored in the app.',
     icon: Icons.bloodtype_outlined,
     source: 'App brief',
   ),

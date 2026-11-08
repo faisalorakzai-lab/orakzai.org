@@ -7,6 +7,7 @@ class AppUser {
     required this.accountStatus,
     required this.profile,
     required this.regionAssignments,
+    this.createdAt,
   });
 
   final String id;
@@ -14,6 +15,7 @@ class AppUser {
   final String phone;
   final bool emailVerified;
   final String accountStatus;
+  final DateTime? createdAt;
   final Map<String, dynamic> profile;
   final List<Map<String, dynamic>> regionAssignments;
 
@@ -32,6 +34,7 @@ class AppUser {
       phone: json['phone'] as String? ?? '',
       emailVerified: json['emailVerified'] as bool? ?? false,
       accountStatus: json['accountStatus'] as String? ?? 'pending',
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
       profile: profileValue is Map
           ? Map<String, dynamic>.from(profileValue)
           : <String, dynamic>{},

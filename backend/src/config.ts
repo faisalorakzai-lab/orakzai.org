@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { resolve } from "node:path";
 
 function required(value: string | undefined, name: string): string {
   if (!value) throw new Error(`${name} is required.`);
@@ -25,10 +26,25 @@ export const config = {
   authDevMode: devAuthMode,
   smtpUrl: process.env.SMTP_URL,
   smtpFrom: process.env.SMTP_FROM,
+  termsUrl: process.env.TERMS_URL,
+  privacyUrl: process.env.PRIVACY_POLICY_URL,
+  legalVersion: process.env.LEGAL_VERSION,
+  accountDeletionRetentionDays: devAuthMode ? 30 :
+    Number(process.env.ACCOUNT_DELETION_RETENTION_DAYS),
   corsOrigins: (process.env.CORS_ORIGINS ?? "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean),
+  communityMediaProvider: process.env.COMMUNITY_MEDIA_PROVIDER ?? "local-development",
+  communityMediaStorageDir: resolve(
+    process.env.COMMUNITY_MEDIA_STORAGE_DIR ?? "var/private-media",
+  ),
+  communityMaxUploadBytes: 25 * 1024 * 1024,
+  communityMediaUrlTtlSeconds: 5 * 60,
+  communityDeletedContentRetentionDays: Number.parseInt(
+    process.env.COMMUNITY_DELETED_CONTENT_RETENTION_DAYS ?? "0",
+    10,
+  ),
   authRateLimitMax:
     process.env.NODE_ENV === "test" ? 100 : Number(process.env.AUTH_RATE_LIMIT_MAX ?? 10),
 };

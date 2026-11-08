@@ -12,24 +12,28 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "cross-env NODE_ENV=development tsx src/db/migrate.ts",
+    "purge-community-retention": "tsx src/scripts/purge-community-retention.ts",
     "test": "cross-env NODE_ENV=test AUTH_DEV_MODE=true vitest run"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
-    "express": "^5.1.0",
+    "express": "^5.3.0",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^7.0.7",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.4.0",
     "pg": "^8.16.3",
-    "zod": "^3.25.76"
+    "socket.io": "^4.8.4",
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.3.0",
     "@types/node": "^22.15.30",
     "@types/nodemailer": "^6.4.17",
     "@types/pg": "^8.15.4",

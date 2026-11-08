@@ -23,6 +23,10 @@ export type RegisterInput = {
   email: string;
   phone: string;
   password: string;
+  country: string;
+  region: string;
+  district: string;
+  acceptedTerms: true;
 };
 
 export type TokenPair = {
@@ -83,9 +87,10 @@ export async function register(input: RegisterInput): Promise<{
   await withTransaction(async (client) => {
     try {
       await client.query(
-        `INSERT INTO users (id, email, phone, password_hash)
-         VALUES ($1, $2, $3, $4)`,
-        [userId, email, phone, passwordHash],
+        `INSERT INTO users (id, email, phone, password_hash, terms_accepted_at, terms_version)
+         VALUES ($1, $2, $3, $4, now(), $5)`,
+        [userId, email, phone, passwordHash,
+          config.legalVersion ?? (config.authDevMode ? "development-notice-v1" : null)],
       );
     } catch (error) {
       if (
@@ -100,9 +105,9 @@ export async function register(input: RegisterInput): Promise<{
     }
 
     await client.query(
-      `INSERT INTO user_profiles (user_id, full_name)
-       VALUES ($1, $2)`,
-      [userId, input.fullName.trim()],
+      `INSERT INTO user_profiles (user_id, full_name,country,region_label,district_label)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [userId,input.fullName.trim(),input.country,input.region,input.district],
     );
     await client.query(
       `INSERT INTO user_roles (user_id, role_id)

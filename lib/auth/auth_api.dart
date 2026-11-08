@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../config/api_config.dart';
 import 'app_user.dart';
 import 'token_store.dart';
 
@@ -20,28 +22,50 @@ class AuthApi {
   AuthApi({TokenStore? tokenStore, http.Client? client, String? baseUrl})
     : _tokenStore = tokenStore ?? SecureTokenStore(),
       _client = client ?? http.Client(),
-      _baseUrl =
-          baseUrl ??
-          const String.fromEnvironment(
-            'ORAKZAI_API_BASE_URL',
-            defaultValue: 'http://10.0.2.2:3001/api',
-          );
+      _baseUrl = baseUrl ?? resolveApiBaseUrl();
 
   final TokenStore _tokenStore;
   final http.Client _client;
   final String _baseUrl;
+  final MemoryTokenStore _memoryTokens = MemoryTokenStore();
+  bool _rememberSession = true;
+  Future<void>? _refreshInFlight;
+  void Function()? onSessionExpired;
+  TokenStore get _tokens => _rememberSession ? _tokenStore : _memoryTokens;
+
+  String get apiBaseUrl => _baseUrl;
+
+  Future<String?> readAccessToken() => _tokens.readAccessToken();
+
+  Future<void> refreshSession() => _refreshSession();
+
+  Future<Map<String, dynamic>> requestAuthorized(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+  }) {
+    return _authorizedRequest(method, path, body: body);
+  }
 
   Future<Map<String, dynamic>> register({
     required String fullName,
     required String email,
     required String phone,
     required String password,
+    String country = '',
+    String region = '',
+    String district = '',
+    bool acceptedTerms = false,
   }) {
     return _publicRequest('POST', '/auth/register', {
       'fullName': fullName,
       'email': email,
       'phone': phone,
       'password': password,
+      'country': country,
+      'region': region,
+      'district': district,
+      'acceptedTerms': acceptedTerms,
     });
   }
 
@@ -84,11 +108,14 @@ class AuthApi {
   Future<void> login({
     required String identifier,
     required String password,
+    bool rememberSession = true,
   }) async {
     final response = await _publicRequest('POST', '/auth/login', {
       'identifier': identifier,
       'password': password,
     });
+    _rememberSession = rememberSession;
+    if (!rememberSession) await _tokenStore.clear();
     await _saveTokenPair(response);
   }
 
@@ -115,11 +142,84 @@ class AuthApi {
     try {
       await _authorizedRequest('POST', '/auth/logout', body: const {});
     } finally {
-      await _tokenStore.clear();
+      await clearSession();
     }
   }
 
-  Future<void> clearSession() => _tokenStore.clear();
+  Future<void> clearSession() async {
+    await _tokenStore.clear();
+    await _memoryTokens.clear();
+  }
+
+  Future<Map<String, dynamic>> capabilities() =>
+      _publicRequest('GET', '/auth/capabilities');
+
+  Future<Uint8List?> requestAuthorizedBytes(String path) async {
+    final response = await _authorizedRaw('GET', path);
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) _decode(response);
+    return response.bodyBytes;
+  }
+
+  Future<Map<String, dynamic>> uploadAuthorized(
+    String path,
+    List<int> bytes,
+    String fileName,
+    String contentType,
+  ) async {
+    final response = await _authorizedRaw(
+      'POST',
+      path,
+      bytes: bytes,
+      contentType: contentType,
+    );
+    return _decode(response);
+  }
+
+  Future<http.Response> _authorizedRaw(
+    String method,
+    String path, {
+    List<int>? bytes,
+    String? contentType,
+  }) async {
+    Future<http.Response> send() async {
+      final token = await readAccessToken();
+      if (token == null) {
+        onSessionExpired?.call();
+        throw const AuthApiException(
+          'UNAUTHENTICATED',
+          'Sign in.',
+          statusCode: 401,
+        );
+      }
+      try {
+        final request = http.Request(method, Uri.parse('$_baseUrl$path'));
+        request.headers['Authorization'] = 'Bearer $token';
+        if (bytes != null) {
+          request.headers['Content-Type'] =
+              contentType ?? 'application/octet-stream';
+          request.bodyBytes = bytes;
+        }
+        return await http.Response.fromStream(
+          await _client.send(request).timeout(const Duration(seconds: 20)),
+        ).timeout(const Duration(seconds: 20));
+      } catch (error) {
+        if (error is AuthApiException) rethrow;
+        throw const AuthApiException('NETWORK_ERROR', 'Connection failed.');
+      }
+    }
+
+    var response = await send();
+    if (response.statusCode == 401) {
+      await _refreshSession();
+      response = await send();
+      if (response.statusCode == 401) {
+        await clearSession();
+        onSessionExpired?.call();
+      }
+    }
+    return response;
+  }
 
   Future<Map<String, dynamic>> _publicRequest(
     String method,
@@ -135,7 +235,7 @@ class AuthApi {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final accessToken = await _tokenStore.readAccessToken();
+    final accessToken = await _tokens.readAccessToken();
     if (accessToken == null) {
       throw const AuthApiException(
         'UNAUTHENTICATED',
@@ -153,7 +253,7 @@ class AuthApi {
     if (response.statusCode == 401 && path != '/auth/refresh') {
       try {
         await _refreshSession();
-        final freshAccessToken = await _tokenStore.readAccessToken();
+        final freshAccessToken = await _tokens.readAccessToken();
         if (freshAccessToken != null) {
           response = await _send(
             method,
@@ -162,17 +262,33 @@ class AuthApi {
             accessToken: freshAccessToken,
           );
         }
-      } on AuthApiException {
-        await _tokenStore.clear();
+      } on AuthApiException catch (error) {
+        if (error.statusCode == 401) {
+          await clearSession();
+          onSessionExpired?.call();
+        }
         rethrow;
       }
+    }
+    if (response.statusCode == 401) {
+      await clearSession();
+      onSessionExpired?.call();
     }
     return _decode(response);
   }
 
-  Future<void> _refreshSession() async {
-    final refreshToken = await _tokenStore.readRefreshToken();
+  Future<void> _refreshSession() {
+    if (_refreshInFlight != null) return _refreshInFlight!;
+    final future = _performRefresh();
+    _refreshInFlight = future;
+    return future.whenComplete(() => _refreshInFlight = null);
+  }
+
+  Future<void> _performRefresh() async {
+    final refreshToken = await _tokens.readRefreshToken();
     if (refreshToken == null) {
+      await clearSession();
+      onSessionExpired?.call();
       throw const AuthApiException(
         'SESSION_EXPIRED',
         'Your session expired. Please sign in again.',
@@ -184,8 +300,16 @@ class AuthApi {
       '/auth/refresh',
       body: {'refreshToken': refreshToken},
     );
-    final tokens = _decode(response);
-    await _saveTokenPair(tokens);
+    try {
+      final tokens = _decode(response);
+      await _saveTokenPair(tokens);
+    } on AuthApiException catch (error) {
+      if (error.statusCode == 401) {
+        await clearSession();
+        onSessionExpired?.call();
+      }
+      rethrow;
+    }
   }
 
   Future<void> _saveTokenPair(Map<String, dynamic> response) async {
@@ -197,7 +321,7 @@ class AuthApi {
         'The server returned an invalid session.',
       );
     }
-    await _tokenStore.writeTokens(
+    await _tokens.writeTokens(
       accessToken: accessToken,
       refreshToken: refreshToken,
     );
@@ -230,6 +354,10 @@ class AuthApi {
         case 'PATCH':
           return await _client
               .patch(url, headers: headers, body: encodedBody)
+              .timeout(const Duration(seconds: 15));
+        case 'DELETE':
+          return await _client
+              .delete(url, headers: headers)
               .timeout(const Duration(seconds: 15));
         default:
           throw ArgumentError.value(

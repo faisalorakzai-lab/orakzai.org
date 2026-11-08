@@ -29,13 +29,12 @@ class AppPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const BrandHeader(),
-            const SizedBox(height: 26),
+            const SizedBox(height: 24),
             Text(
               eyebrow.toUpperCase(),
-              style: theme.textTheme.labelLarge?.copyWith(
-                color: AppColors.green,
-                letterSpacing: 1.3,
-                fontSize: 11,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: AppColors.goldDeep,
+                letterSpacing: 1.4,
               ),
             ),
             const SizedBox(height: 8),
@@ -52,7 +51,10 @@ class AppPage extends StatelessWidget {
 }
 
 class BrandHeader extends StatelessWidget {
-  const BrandHeader({super.key});
+  const BrandHeader({this.trailing, super.key});
+
+  /// Optional trailing control (e.g. a search button on Home).
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -60,19 +62,20 @@ class BrandHeader extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 46,
-          height: 46,
-          padding: const EdgeInsets.all(2),
+          width: 42,
+          height: 42,
+          padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.gold, width: 1.5),
+            borderRadius: BorderRadius.circular(12),
+            color: AppColors.navy,
           ),
-          child: ClipOval(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
             child: Image.asset(
               'assets/images/orakzai_emblem.png',
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => const ColoredBox(
-                color: AppColors.navy,
+                color: AppColors.emerald,
                 child: Icon(Icons.landscape_outlined, color: AppColors.gold),
               ),
             ),
@@ -87,47 +90,23 @@ class BrandHeader extends StatelessWidget {
                 'ORAKZAI.ORG',
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: AppColors.navy,
-                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.1,
                 ),
               ),
               Text(
-                'THE DIGITAL COMMUNITY NETWORK',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: AppColors.muted,
-                  fontSize: 9,
-                  letterSpacing: 0.75,
+                'GLOBAL ORAKZAI COMMUNITY',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.goldDeep,
+                  fontSize: 9.5,
+                  letterSpacing: 1.1,
                 ),
               ),
             ],
           ),
         ),
-        const PreviewBadge(),
+        if (trailing != null) trailing!,
       ],
-    );
-  }
-}
-
-class PreviewBadge extends StatelessWidget {
-  const PreviewBadge({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.goldWash,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.45)),
-      ),
-      child: const Text(
-        'PREVIEW',
-        style: TextStyle(
-          color: AppColors.navy,
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-        ),
-      ),
     );
   }
 }
@@ -183,7 +162,7 @@ class InfoBanner extends StatelessWidget {
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: foreground.withValues(alpha: 0.08)),
       ),
       child: Row(
@@ -238,19 +217,19 @@ class QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = emergency ? AppColors.navy : Colors.white;
-    final foreground = emergency ? Colors.white : AppColors.navy;
+    final background = emergency ? AppColors.emerald : AppColors.surface;
+    final foreground = emergency ? AppColors.ivory : AppColors.ink;
     return Material(
       color: background,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
           constraints: const BoxConstraints(minHeight: 132),
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: emergency ? AppColors.navy : AppColors.line,
             ),
@@ -296,14 +275,14 @@ class ProgramAreaCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
-      color: Colors.white,
+      color: AppColors.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         side: const BorderSide(color: AppColors.line),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(15),
@@ -314,10 +293,10 @@ class ProgramAreaCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: AppColors.goldWash,
-                  borderRadius: BorderRadius.circular(14),
+                  color: AppColors.greenWash,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(area.icon, color: AppColors.navy, size: 21),
+                child: Icon(area.icon, color: AppColors.emerald, size: 21),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -328,7 +307,7 @@ class ProgramAreaCard extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       area.summary,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 12),
+                      style: theme.textTheme.bodySmall,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -336,9 +315,9 @@ class ProgramAreaCard extends StatelessWidget {
                     Text(
                       area.source.toUpperCase(),
                       style: theme.textTheme.labelLarge?.copyWith(
-                        color: AppColors.green,
-                        fontSize: 9,
-                        letterSpacing: 0.7,
+                        color: AppColors.goldDeep,
+                        fontSize: 9.5,
+                        letterSpacing: 0.9,
                       ),
                     ),
                   ],
@@ -377,8 +356,8 @@ class EmptyState extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.line),
       ),
       child: Column(
@@ -421,10 +400,10 @@ class ProfileOptionTile extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: AppColors.goldWash,
-          borderRadius: BorderRadius.circular(13),
+          color: AppColors.greenWash,
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(icon, color: AppColors.navy, size: 20),
+        child: Icon(icon, color: AppColors.emerald, size: 20),
       ),
       title: Text(title, style: theme.textTheme.titleMedium),
       subtitle: Text(subtitle, style: theme.textTheme.bodyMedium),

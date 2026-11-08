@@ -2,6 +2,7 @@ import { pool } from "../db/pool.js";
 import { HttpError } from "../http/errors.js";
 
 export type UserProfile = {
+  createdAt: string;
   id: string;
   email: string;
   phone: string;
@@ -14,6 +15,11 @@ export type UserProfile = {
     profilePhotoUrl: string | null;
     city: string | null;
     country: string | null;
+    region: string | null;
+    district: string | null;
+    qoum: string | null;
+    village: string | null;
+    hasProfilePhoto: boolean;
     profession: string | null;
     skills: string[];
     education: string | null;
@@ -42,6 +48,12 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     phone: string;
     email_verified_at: Date | null;
     account_status: string;
+    created_at: Date;
+    region_label: string | null;
+    district_label: string | null;
+    qoum_label: string | null;
+    village_label: string | null;
+    avatar_storage_key: string | null;
     full_name: string;
     username: string | null;
     member_id: string | null;
@@ -58,7 +70,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     show_education_publicly: boolean;
     allow_profile_search: boolean;
   }>(
-    `SELECT u.id, u.email, u.phone, u.email_verified_at, u.account_status,
+    `SELECT u.id, u.email, u.phone, u.email_verified_at, u.account_status,u.created_at,
+            p.region_label,p.district_label,p.qoum_label,p.village_label,p.avatar_storage_key,
             p.full_name, p.username, p.member_id, p.profile_photo_url,
             p.city, p.country, p.profession, p.skills, p.education, p.biography,
             p.show_city_publicly, p.show_profession_publicly,
@@ -93,6 +106,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
 
   return {
     id: user.id,
+    createdAt: user.created_at.toISOString(),
     email: user.email,
     phone: user.phone,
     emailVerified: user.email_verified_at !== null,
@@ -104,6 +118,11 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
       profilePhotoUrl: user.profile_photo_url,
       city: user.city,
       country: user.country,
+      region: user.region_label,
+      district: user.district_label,
+      qoum: user.qoum_label,
+      village: user.village_label,
+      hasProfilePhoto: Boolean(user.avatar_storage_key),
       profession: user.profession,
       skills: user.skills,
       education: user.education,
@@ -132,6 +151,10 @@ const profileColumns: Record<string, string> = {
   profilePhotoUrl: "profile_photo_url",
   city: "city",
   country: "country",
+  region: "region_label",
+  district: "district_label",
+  qoum: "qoum_label",
+  village: "village_label",
   profession: "profession",
   skills: "skills",
   education: "education",

@@ -1,0 +1,186 @@
+name: Android release
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: Public HTTPS backend URL including /api (not the website URL)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      API_URL: ${{ inputs.api_url || vars.ORAKZAI_API_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      # Also works if the app directory is retained inside the workspace repository.
+      - name: Locate Flutter project
+        run: |
+          if [[ -f pubspec.yaml ]]; then
+            echo "APP_DIR=$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+          elif [[ -f orakzai.org/pubspec.yaml ]]; then
+            echo "APP_DIR=$GITHUB_WORKSPACE/orakzai.org" >> "$GITHUB_ENV"
+          else
+            echo "::error::Flutter project not found"; exit 1
+          fi
+      - name: Validate production API URL
+        run: |
+          python3 - <<'PY'
+          import ipaddress, os
+          from urllib.parse import urlsplit
+          u = urlsplit(os.environ.get("API_URL", "").strip())
+          assert u.scheme == "https" and u.hostname, "Explicit HTTPS API URL required"
+          assert not (u.username or u.password or u.query or u.fragment), "Invalid API URL"
+          assert u.hostname != "localhost" and "." in u.hostname, "Public API host required"
+          try:
+              ip = ipaddress.ip_address(u.hostname)
+          except ValueError:
+              pass
+          else:
+              assert ip.is_global, "Public API address required"
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: stable
+          cache: true
+      - name: Install Android toolchain
+        run: |
+          set -o pipefail
+          mkdir -p "$RUNNER_TEMP/android-logs"
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1" 2>&1 | tee "$RUNNER_TEMP/android-logs/sdk.log"
+          flutter doctor -v 2>&1 | tee "$RUNNER_TEMP/android-logs/doctor.log"
+      - name: Configure signing or label unsigned build
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import base64, os
+          keys = ["KEYSTORE_BASE64", "STORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD"]
+          present = [bool(os.environ.get(k)) for k in keys]
+          assert all(present) or not any(present), "Provide all four signing secrets or none"
+          mode = "signed" if all(present) else "unsigned-NOT-PLAY-STORE"
+          if all(present):
+              path = os.path.join(os.environ["RUNNER_TEMP"], "orakzai-release.jks")
+              with open(path, "wb") as f:
+                  f.write(base64.b64decode(os.environ["KEYSTORE_BASE64"], validate=True))
+              os.chmod(path, 0o600)
+              with open(os.environ["GITHUB_ENV"], "a") as f:
+                  f.write("ANDROID_KEYSTORE_PATH=" + path + "\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("mode=" + mode + "\n")
+          PY
+      - name: Resolve packages
+        run: |
+          cd "$APP_DIR"
+          flutter pub get 2>&1 | tee "$RUNNER_TEMP/android-logs/pub-get.log"
+      - name: Analyze Flutter
+        run: |
+          cd "$APP_DIR"
+          flutter analyze 2>&1 | tee "$RUNNER_TEMP/android-logs/analyze.log"
+      - name: Test Flutter
+        run: |
+          cd "$APP_DIR"
+          flutter test 2>&1 | tee "$RUNNER_TEMP/android-logs/tests.log"
+      - name: Build release APK
+        id: apk
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd "$APP_DIR"
+          flutter build apk --release --target lib/main.dart --dart-define="ORAKZAI_API_BASE_URL=$API_URL" 2>&1 | tee "$RUNNER_TEMP/android-logs/apk.log"
+      - name: Build release AAB
+        if: ${{ !cancelled() && steps.apk.outcome != 'skipped' }}
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd "$APP_DIR"
+          flutter build appbundle --release --target lib/main.dart --dart-define="ORAKZAI_API_BASE_URL=$API_URL" 2>&1 | tee "$RUNNER_TEMP/android-logs/aab.log"
+      - name: Verify and package artifacts
+        if: ${{ !cancelled() && steps.apk.outcome != 'skipped' }}
+        env:
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/android-output"
+          apk="$APP_DIR/build/app/outputs/flutter-apk/app-release.apk"
+          # Gradle may use the explicit unsigned filename without a signing config.
+          if [[ ! -f "$apk" ]]; then
+            apk="$APP_DIR/build/app/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          aab="$APP_DIR/build/app/outputs/bundle/release/app-release.aab"
+          test -s "$apk" && test -s "$aab"
+          unzip -t "$apk" > "$RUNNER_TEMP/android-logs/apk-integrity.log"
+          unzip -t "$aab" > "$RUNNER_TEMP/android-logs/aab-integrity.log"
+          if [[ "$SIGNING_MODE" == signed ]]; then
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk" > "$RUNNER_TEMP/android-logs/apk-signature.log"
+            jarsigner -verify "$aab" > "$RUNNER_TEMP/android-logs/aab-signature.log"
+            grep -q "jar verified" "$RUNNER_TEMP/android-logs/aab-signature.log"
+          fi
+          cp "$apk" "$RUNNER_TEMP/android-output/orakzai-$SIGNING_MODE.apk"
+          cp "$aab" "$RUNNER_TEMP/android-output/orakzai-$SIGNING_MODE.aab"
+          cd "$RUNNER_TEMP/android-output"
+          sha256sum ./*.apk ./*.aab > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        id: binaries
+        if: success()
+        with:
+          name: android-${{ steps.signing.outputs.mode }}-${{ github.run_number }}
+          path: ${{ runner.temp }}/android-output/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Write artifact download location
+        if: success()
+        env:
+          ARTIFACT_URL: ${{ steps.binaries.outputs.artifact-url }}
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
+        run: |
+          printf '## Android build\n\nMode: **%s**\n\n[Download verified build archives](%s)\n' "$SIGNING_MODE" "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Record build outcome
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          APK_STATUS: ${{ steps.apk.outcome }}
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/android-logs"
+          printf 'Job: %s\nAPK step: %s\nSigning mode: %s\n' "$JOB_STATUS" "$APK_STATUS" "$SIGNING_MODE" > "$RUNNER_TEMP/android-logs/outcome.txt"
+      - name: Preserve diagnostic logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-build-logs-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/android-logs/
+            ${{ env.APP_DIR }}/build/reports/
+            ${{ env.APP_DIR }}/android/build/reports/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Clean signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/orakzai-release.jks"

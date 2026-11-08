@@ -5,6 +5,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { requireAuth } from "../middleware/authenticate.js";
 import { HttpError } from "../http/errors.js";
+import { disconnectSessionSockets } from "../realtime.js";
 import {
   login,
   logout,
@@ -15,6 +16,7 @@ import {
   resetPassword,
   verifyEmail,
 } from "../services/auth-service.js";
+import { accountCapabilities } from "../services/account-service.js";
 
 const authRouter = Router();
 const authLimiter = rateLimit({
@@ -47,6 +49,10 @@ const registerSchema = z
       .max(128)
       .regex(/[A-Za-z]/, "Password must include a letter.")
       .regex(/\d/, "Password must include a number."),
+    country: z.string().trim().min(2).max(100),
+    region: z.string().trim().max(100).default(""),
+    district: z.string().trim().max(100).default(""),
+    acceptedTerms: z.literal(true),
   })
   .strict();
 
@@ -89,8 +95,15 @@ function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   return result.data;
 }
 
+authRouter.get("/capabilities", (_request, response) => {
+  response.set("Cache-Control", "no-store").json(accountCapabilities());
+});
+
 authRouter.post("/register", authLimiter, async (request, response) => {
   const input = parseBody(registerSchema, request.body);
+  if (!accountCapabilities().registrationAvailable) {
+    throw new HttpError(503, "REGISTRATION_NOT_AVAILABLE", "Registration is not configured.");
+  }
   const result = await register(input);
   response.status(201).json(result);
 });
@@ -131,6 +144,7 @@ authRouter.post("/logout", requireAuth, async (request, response) => {
   const principal = request.auth;
   if (!principal) throw new HttpError(401, "UNAUTHENTICATED", "Please sign in.");
   await logout(principal.sessionId, principal.userId);
+  disconnectSessionSockets(principal.sessionId);
   response.status(204).end();
 });
 

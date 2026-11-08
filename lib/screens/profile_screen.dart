@@ -3,21 +3,31 @@ import 'package:flutter/material.dart';
 import '../app/app_language.dart';
 import '../app/app_theme.dart';
 import '../auth/app_user.dart';
+import '../account/member_account_sections.dart';
 import '../auth/auth_controller.dart';
 import '../widgets/app_components.dart';
-import 'auth_flow_screen.dart';
+import '../account/account_strings.dart';
+import '../account/member_profile_photo.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     required this.language,
     required this.onLanguageChanged,
     required this.authController,
+    this.onAppearanceChanged,
+    this.appearance = ThemeMode.system,
+    this.onReviewOnboarding,
+    this.onOpenHelpDesk,
     super.key,
   });
 
   final AppLanguage language;
   final ValueChanged<AppLanguage> onLanguageChanged;
   final AuthController authController;
+  final ValueChanged<ThemeMode>? onAppearanceChanged;
+  final ThemeMode appearance;
+  final VoidCallback? onReviewOnboarding;
+  final VoidCallback? onOpenHelpDesk;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -26,6 +36,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationsEnabled = false;
   bool _profileUpdateBusy = false;
+  String _t(String key, [Map<String, String>? values]) =>
+      AccountStrings.text(widget.language, key, values);
 
   @override
   Widget build(BuildContext context) {
@@ -35,43 +47,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final auth = widget.authController;
         return AppPage(
           title: AppCopy.text(widget.language, 'profile'),
-          subtitle: auth.isAuthenticated
-              ? 'Your private account and privacy settings.'
-              : 'Sign in or create an account to manage your private profile.',
+          subtitle: 'Your account, community and privacy settings.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (auth.status == AuthStatus.restoring)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 36),
-                    child: CircularProgressIndicator(),
-                  ),
-                )
-              else if (auth.isAuthenticated && auth.user != null)
+              if (auth.isAuthenticated && auth.user != null)
                 _signedInProfile(auth.user!)
               else
-                AuthFlowScreen(auth: auth),
-              const SizedBox(height: 22),
-              SectionHeading(title: AppCopy.text(widget.language, 'language')),
-              Text(
-                'English is fully available. Urdu and Pashto navigation and home controls are translated; the remaining account text is currently English.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: AppLanguage.values
-                    .map(
-                      (language) => ChoiceChip(
-                        label: Text(language.displayName),
-                        selected: widget.language == language,
-                        onSelected: (_) => widget.onLanguageChanged(language),
-                      ),
-                    )
-                    .toList(),
-              ),
+                const SizedBox.shrink(),
+              if (auth.isAuthenticated)
+                MemberAccountSections(
+                  auth: auth,
+                  language: widget.language,
+                  appearance: widget.appearance,
+                  onAppearanceChanged: widget.onAppearanceChanged ?? (_) {},
+                  onLanguageChanged: widget.onLanguageChanged,
+                  onOpenHelpDesk: widget.onOpenHelpDesk ?? () {},
+                  onReviewOnboarding: widget.onReviewOnboarding ?? () {},
+                ),
             ],
           ),
         );
@@ -87,6 +80,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 13),
+          child: Center(
+            child: MemberProfilePhoto(
+              auth: auth,
+              language: widget.language,
+              userId: user.id,
+              fullName: user.fullName,
+            ),
+          ),
+        ),
         _AccountCard(user: user),
         const SizedBox(height: 17),
         Container(
@@ -104,7 +108,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Profile details',
+                      _t('personalInfo'),
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
@@ -113,47 +117,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ? null
                         : () => _editProfile(user),
                     icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Edit'),
+                    label: Text(_t('editProfile')),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               _DetailRow(
-                label: 'Username',
+                label: _t('username'),
                 value: _textOrUnset(user.profile['username']),
               ),
-              _DetailRow(label: 'Phone', value: user.phone),
-              _DetailRow(label: 'City', value: _textOrUnset(user.city)),
-              _DetailRow(label: 'Country', value: _textOrUnset(user.country)),
+              _DetailRow(label: _t('email'), value: user.email),
+              _DetailRow(label: _t('phone'), value: user.phone),
+              _DetailRow(label: _t('city'), value: _textOrUnset(user.city)),
               _DetailRow(
-                label: 'Profession',
+                label: _t('country'),
+                value: _textOrUnset(user.country),
+              ),
+              _DetailRow(
+                label: _t('region'),
+                value: _textOrUnset(user.profile['region'] as String?),
+              ),
+              _DetailRow(
+                label: _t('district'),
+                value: _textOrUnset(user.profile['district'] as String?),
+              ),
+              _DetailRow(
+                label: _t('qoum'),
+                value: _textOrUnset(user.profile['qoum'] as String?),
+              ),
+              _DetailRow(
+                label: _t('village'),
+                value: _textOrUnset(user.profile['village'] as String?),
+              ),
+              _DetailRow(
+                label: _t('profession'),
                 value: _textOrUnset(user.profile['profession']),
               ),
               _DetailRow(
-                label: 'Education',
+                label: _t('education'),
                 value: _textOrUnset(user.profile['education']),
               ),
               _DetailRow(
-                label: 'Skills',
+                label: _t('skills'),
                 value: (user.profile['skills'] as List? ?? const []).join(', '),
               ),
               _DetailRow(
-                label: 'Biography',
+                label: _t('bio'),
                 value: _textOrUnset(user.profile['biography']),
               ),
               _DetailRow(
-                label: 'Member ID',
-                value: user.memberId ?? 'Not assigned by the organization',
+                label: _t('createdAt'),
+                value: user.createdAt == null
+                    ? _t('notProvided')
+                    : user.createdAt!.toLocal().toString().split('.').first,
               ),
               _DetailRow(
-                label: 'Account verification',
+                label: _t('verification'),
                 value: user.emailVerified
-                    ? 'Email verified'
-                    : 'Email not verified',
-              ),
-              _DetailRow(
-                label: 'Organization role',
-                value: _displayRoles(auth.roles),
+                    ? _t('emailVerifiedBadge')
+                    : _t('emailUnverified'),
               ),
             ],
           ),
@@ -255,7 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     setState(() => _notificationsEnabled = value),
                 title: const Text('Notification preference'),
                 subtitle: const Text(
-                  'Local device preview only; push delivery is not configured.',
+                  'Saved on this device only; push delivery is not configured.',
                 ),
               ),
               const Divider(height: 1),
@@ -308,26 +330,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return 'Not provided';
   }
 
-  String _displayRoles(List<String> roles) {
-    if (roles.isEmpty) return 'Standard Member';
-    return roles
-        .map((role) {
-          return role
-              .split('_')
-              .map(
-                (word) => word.isEmpty
-                    ? word
-                    : '${word[0].toUpperCase()}${word.substring(1)}',
-              )
-              .join(' ');
-        })
-        .join(', ');
-  }
-
   Future<void> _editProfile(AppUser user) async {
     final updates = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => _ProfileEditDialog(user: user),
+      builder: (context) =>
+          _ProfileEditDialog(user: user, language: widget.language),
     );
     if (updates == null) return;
     setState(() => _profileUpdateBusy = true);
@@ -497,9 +504,10 @@ class _PrivacyToggle extends StatelessWidget {
 }
 
 class _ProfileEditDialog extends StatefulWidget {
-  const _ProfileEditDialog({required this.user});
+  const _ProfileEditDialog({required this.user, required this.language});
 
   final AppUser user;
+  final AppLanguage language;
 
   @override
   State<_ProfileEditDialog> createState() => _ProfileEditDialogState();
@@ -509,9 +517,12 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _fullName;
   late final TextEditingController _username;
-  late final TextEditingController _photoUrl;
   late final TextEditingController _city;
   late final TextEditingController _country;
+  late final TextEditingController _region;
+  late final TextEditingController _district;
+  late final TextEditingController _qoum;
+  late final TextEditingController _village;
   late final TextEditingController _profession;
   late final TextEditingController _skills;
   late final TextEditingController _education;
@@ -525,11 +536,14 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
     _username = TextEditingController(
       text: profile['username'] as String? ?? '',
     );
-    _photoUrl = TextEditingController(
-      text: profile['profilePhotoUrl'] as String? ?? '',
-    );
     _city = TextEditingController(text: widget.user.city ?? '');
     _country = TextEditingController(text: widget.user.country ?? '');
+    _region = TextEditingController(text: profile['region'] as String? ?? '');
+    _district = TextEditingController(
+      text: profile['district'] as String? ?? '',
+    );
+    _qoum = TextEditingController(text: profile['qoum'] as String? ?? '');
+    _village = TextEditingController(text: profile['village'] as String? ?? '');
     _profession = TextEditingController(
       text: profile['profession'] as String? ?? '',
     );
@@ -548,9 +562,12 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
   void dispose() {
     _fullName.dispose();
     _username.dispose();
-    _photoUrl.dispose();
     _city.dispose();
     _country.dispose();
+    _region.dispose();
+    _district.dispose();
+    _qoum.dispose();
+    _village.dispose();
     _profession.dispose();
     _skills.dispose();
     _education.dispose();
@@ -560,8 +577,9 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    String t(String key) => AccountStrings.text(widget.language, key);
     return AlertDialog(
-      title: const Text('Edit profile'),
+      title: Text(t('editProfile')),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -572,39 +590,21 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
               children: [
                 _textField(
                   _fullName,
-                  'Full name',
+                  t('fullName'),
                   maxLength: 100,
                   required: true,
                 ),
-                _textField(_username, 'Username', maxLength: 30),
-                _textField(
-                  _photoUrl,
-                  'Profile photo URL',
-                  keyboardType: TextInputType.url,
-                  maxLength: 2048,
-                  hint: 'https://',
-                ),
-                _textField(_city, 'City', maxLength: 100),
-                _textField(_country, 'Country', maxLength: 100),
-                _textField(_profession, 'Profession', maxLength: 120),
-                _textField(
-                  _skills,
-                  'Skills',
-                  hint: 'Separate skills with commas',
-                  maxLength: 500,
-                ),
-                _textField(_education, 'Education', maxLength: 200),
-                _textField(
-                  _biography,
-                  'Short biography',
-                  maxLength: 500,
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Photo upload is not connected yet; a URL is stored privately in your profile.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                _textField(_username, t('username'), maxLength: 30),
+                _textField(_city, t('city'), maxLength: 100),
+                _textField(_country, t('country'), maxLength: 100),
+                _textField(_region, t('region'), maxLength: 100),
+                _textField(_district, t('district'), maxLength: 100),
+                _textField(_qoum, t('qoum'), maxLength: 100),
+                _textField(_village, t('village'), maxLength: 100),
+                _textField(_profession, t('profession'), maxLength: 120),
+                _textField(_skills, t('skills'), maxLength: 500),
+                _textField(_education, t('education'), maxLength: 200),
+                _textField(_biography, t('bio'), maxLength: 500, maxLines: 3),
               ],
             ),
           ),
@@ -613,9 +613,9 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(t('cancel')),
         ),
-        FilledButton(onPressed: _save, child: const Text('Save profile')),
+        FilledButton(onPressed: _save, child: Text(t('save'))),
       ],
     );
   }
@@ -643,14 +643,7 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
         ),
         validator: (value) {
           if (required && (value == null || value.trim().length < 2)) {
-            return 'Enter at least 2 characters.';
-          }
-          if (controller == _photoUrl &&
-              value != null &&
-              value.trim().isNotEmpty &&
-              !(Uri.tryParse(value.trim())?.hasScheme == true &&
-                  Uri.tryParse(value.trim())?.host.isNotEmpty == true)) {
-            return 'Enter a valid image URL.';
+            return AccountStrings.text(widget.language, 'profileNameTooShort');
           }
           return null;
         },
@@ -663,11 +656,12 @@ class _ProfileEditDialogState extends State<_ProfileEditDialog> {
     Navigator.of(context).pop({
       'fullName': _fullName.text.trim(),
       'username': _username.text.trim().isEmpty ? null : _username.text.trim(),
-      'profilePhotoUrl': _photoUrl.text.trim().isEmpty
-          ? null
-          : _photoUrl.text.trim(),
       'city': _city.text.trim().isEmpty ? null : _city.text.trim(),
       'country': _country.text.trim().isEmpty ? null : _country.text.trim(),
+      'region': _region.text.trim().isEmpty ? null : _region.text.trim(),
+      'district': _district.text.trim().isEmpty ? null : _district.text.trim(),
+      'qoum': _qoum.text.trim().isEmpty ? null : _qoum.text.trim(),
+      'village': _village.text.trim().isEmpty ? null : _village.text.trim(),
       'profession': _profession.text.trim().isEmpty
           ? null
           : _profession.text.trim(),

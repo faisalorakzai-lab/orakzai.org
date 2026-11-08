@@ -36,6 +36,8 @@ describe("authentication and profile API", () => {
         email,
         phone,
         password: originalPassword,
+        country: 'Pakistan',
+        acceptedTerms: true,
       });
 
     expect(registerResponse.status).toBe(201);

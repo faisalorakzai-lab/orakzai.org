@@ -1,3 +1,7 @@
+import 'package:flutter/widgets.dart';
+
+import '../account/account_strings.dart';
+
 enum AppLanguage { english, urdu, pashto }
 
 extension AppLanguageDetails on AppLanguage {
@@ -8,6 +12,19 @@ extension AppLanguageDetails on AppLanguage {
   };
 
   bool get isRightToLeft => this != AppLanguage.english;
+
+  String get code => switch (this) {
+    AppLanguage.english => 'en',
+    AppLanguage.urdu => 'ur',
+    AppLanguage.pashto => 'ps',
+  };
+
+  Locale get locale => Locale(code);
+
+  static AppLanguage fromCode(String? code) => AppLanguage.values.firstWhere(
+    (language) => language.code == code,
+    orElse: () => AppLanguage.english,
+  );
 }
 
 class AppCopy {
@@ -26,7 +43,7 @@ class AppCopy {
       'shareProblem': 'Share a problem',
       'search': 'Search programs and services',
       'language': 'Language',
-      'guest': 'Guest preview',
+      'guest': 'Guest',
     },
     AppLanguage.urdu: {
       'home': 'ہوم',
@@ -64,3 +81,27 @@ class AppCopy {
         key;
   }
 }
+
+/// Makes the active language available to every route so that account and
+/// authentication screens rebuild immediately when the member switches it.
+class LanguageScope extends InheritedWidget {
+  const LanguageScope({
+    required this.language,
+    required super.child,
+    super.key,
+  });
+
+  final AppLanguage language;
+
+  static AppLanguage of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<LanguageScope>()?.language ??
+      AppLanguage.english;
+
+  @override
+  bool updateShouldNotify(LanguageScope oldWidget) =>
+      oldWidget.language != language;
+}
+
+/// Translate an account/auth/launch key for the current context.
+String tr(BuildContext context, String key, [Map<String, String>? args]) =>
+    AccountStrings.text(LanguageScope.of(context), key, args);
